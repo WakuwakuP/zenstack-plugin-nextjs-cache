@@ -94,8 +94,9 @@ export async function updateUser(id: string, data: { name: string }) {
     data,
   });
   // afterEntityMutation で以下が自動実行:
-  // - revalidateTag('user:list', 'max')
-  // - revalidateTag('user:${id}', 'max')
+  // 
+  // - updateTag('user:list')
+  // - updateTag('user:${id}')
 }
 ```
 
