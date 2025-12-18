@@ -1,0 +1,42 @@
+// Next.js Cache Plugin - カスタム属性定義
+// ZenStack v3 用の拡張スキーマ
+
+/**
+ * キャッシュ除外属性
+ * このモデルへのクエリ結果をキャッシュしない
+ *
+ * @example
+ * model Session {
+ *   id String @id
+ *   @@cache.exclude()
+ * }
+ */
+attribute @@cache.exclude()
+
+/**
+ * キャッシュライフタイム属性
+ * キャッシュの有効期間を設定
+ *
+ * @param life - 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'max'
+ *
+ * @example
+ * model Post {
+ *   id String @id
+ *   @@cache.life('minutes')
+ * }
+ */
+attribute @@cache.life(_ life: String @@@completionHint(["'seconds'", "'minutes'", "'hours'", "'days'", "'weeks'", "'max'"]))
+
+/**
+ * カスタムキャッシュタグ属性
+ * デフォルトのタグに加えてカスタムタグを設定
+ *
+ * @param tags - タグの配列
+ *
+ * @example
+ * model Post {
+ *   id String @id
+ *   @@cache.tags(['content', 'blog'])
+ * }
+ */
+attribute @@cache.tags(_ tags: String[])
