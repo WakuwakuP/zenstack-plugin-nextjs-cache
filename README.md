@@ -1,48 +1,49 @@
 # Next.js Cache Plugin for ZenStack v3
 
-ZenStack v3 のランタイムプラグインとして、Next.js のキャッシュシステム（`unstable_cache`）を透過的に統合するプラグインです。
+A runtime plugin for ZenStack v3 that transparently integrates the Next.js cache system (`unstable_cache`).
 
-## 特徴
+## Features
 
-- **透過的なキャッシュ**: 開発者がキャッシュを意識する必要がない
-- **unstable_cache によるキャッシュ**: 読み取り操作で自動的に `unstable_cache` でラップ
-- **自動キャッシュ無効化**: 書き込み操作後に自動的に `revalidateTag()` を実行
-- **Date型の自動変換**: キャッシュシリアライズ問題を自動で解決
+- **Transparent Caching**: Developers do not need to be conscious of caching mechanisms.
+- **Caching via `unstable_cache`**: Read operations are automatically wrapped in `unstable_cache`.
+- **Automatic Invalidation**: `revalidateTag()` is automatically executed after write operations.
+- **Automatic Date Conversion**: Automatically resolves cache serialization issues for Date types.
 
-## アーキテクチャ
+## Architecture
 
 ```
-開発者のコード
+Developer Code
     │
     ▼
 ┌────────────────────────────────┐
-│  db.user.findMany()            │  ← 普通にORMを使うだけ
+│  db.user.findMany()            │  ← Simply use the ORM
 └────────────────────────────────┘
     │
     ▼
 ┌────────────────────────────────┐
-│  onQuery Hook (読み取り)        │
-│  ・unstable_cache でラップ       │
-│  ・キャッシュタグ・revalidate設定 │
-│  ・Date → ISO文字列変換          │
+│  onQuery Hook (Read)           │
+│  ・Wrap in unstable_cache      │
+│  ・Set Cache Tags / Revalidate │
+│  ・Date → ISO String Convert   │
 └────────────────────────────────┘
     │
     ▼
 ┌────────────────────────────────┐
-│  afterEntityMutation (書き込み) │
-│  ・revalidateTag() で自動無効化  │
+│  afterEntityMutation (Write)   │
+│  ・Auto invalidate via         │
+│    revalidateTag()             │
 └────────────────────────────────┘
     │
     ▼
 ┌────────────────────────────────┐
-│  Next.js Cache                  │
-│  ・unstable_cache による処理    │
+│  Next.js Cache                 │
+│  ・Process via unstable_cache  │
 └────────────────────────────────┘
 ```
 
-## 使い方
+## Usage
 
-### 基本的な使い方
+### Basic Usage
 
 ```typescript
 // src/lib/prisma.ts
@@ -51,7 +52,7 @@ import { createNextjsCachePlugin } from '@/lib/plugins';
 
 const baseDb = new ZenStackClient(schema, { dialect });
 
-// プラグインを適用
+// Apply the plugin
 const db = baseDb.$use(
   createNextjsCachePlugin({
     defaultCacheLife: 'hours',
@@ -63,9 +64,9 @@ const db = baseDb.$use(
 export { db };
 ```
 
-### Server Actions での使用
+### Usage in Server Actions
 
-キャッシュを意識する必要はありません。普通にORMを使うだけです。
+You don't need to worry about caching manually. Just use the ORM as you normally would.
 
 ```typescript
 // src/actions/user.ts
@@ -73,63 +74,63 @@ export { db };
 
 import { db } from '@/lib/db';
 
-// 読み取り: 自動的にキャッシュされる
+// Read: Automatically cached
 export async function getUsers() {
   return db.user.findMany({
     orderBy: { createdAt: 'desc' },
   });
 }
 
-// 読み取り: 個別エンティティも自動キャッシュ
+// Read: Individual entities are also automatically cached
 export async function getUser(id: string) {
   return db.user.findUnique({
     where: { id },
   });
 }
 
-// 書き込み: 自動的にキャッシュが無効化される
+// Write: Automatically invalidates the cache
 export async function updateUser(id: string, data: { name: string }) {
   return db.user.update({
     where: { id },
     data,
   });
-  // afterEntityMutation で以下が自動実行:
+  // The following are automatically executed in afterEntityMutation:
   // 
   // - updateTag('user:list')
   // - updateTag('user:${id}')
 }
 ```
 
-## オプション
+## Options
 
-| オプション | 型 | デフォルト | 説明 |
-|-----------|------|---------|------|
-| `defaultCacheLife` | `'seconds' \| 'minutes' \| 'hours' \| 'days' \| 'weeks' \| 'max'` | `'hours'` | デフォルトのキャッシュ有効期間（revalidate秒数に変換） |
-| `excludeModels` | `string[]` | `['Session', 'Account', 'Verification']` | キャッシュから除外するモデル |
-| `debug` | `boolean` | `false` | デバッグログを出力 |
-| `customTagGenerator` | `(model: string, id?: string) => string[]` | - | カスタムのキャッシュタグ生成関数 |
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `defaultCacheLife` | `'seconds' \| 'minutes' \| 'hours' \| 'days' \| 'weeks' \| 'max'` | `'hours'` | Default cache duration (converted to revalidate seconds). |
+| `excludeModels` | `string[]` | `['Session', 'Account', 'Verification']` | Models to exclude from caching. |
+| `debug` | `boolean` | `false` | Outputs debug logs. |
+| `customTagGenerator` | `(model: string, id?: string) => string[]` | - | Function to generate custom cache tags. |
 
-### キャッシュ有効期間
+### Cache Duration
 
-`defaultCacheLife` の値は以下の秒数に変換されます：
+The values for `defaultCacheLife` are converted into the following seconds:
 
-| 値 | 秒数 |
-|------|------|
+| Value | Seconds |
+|---|---|
 | `'seconds'` | 1 |
 | `'minutes'` | 60 |
 | `'hours'` | 3600 |
 | `'days'` | 86400 |
 | `'weeks'` | 604800 |
-| `'max'` | 31536000（1年） |
+| `'max'` | 31536000 (1 Year) |
 
-## キャッシュタグの命名規則
+## Cache Tag Naming Convention
 
-デフォルトでは以下の形式でキャッシュタグが生成されます：
+By default, cache tags are generated in the following format:
 
-- リスト取得: `{model}:list` (例: `user:list`)
-- 個別取得: `{model}:{id}` (例: `user:abc123`)
+- List retrieval: `{model}:list` (e.g., `user:list`)
+- Individual retrieval: `{model}:{id}` (e.g., `user:abc123`)
 
-### カスタムタグ生成
+### Custom Tag Generation
 
 ```typescript
 createNextjsCachePlugin({
@@ -143,40 +144,37 @@ createNextjsCachePlugin({
 });
 ```
 
-## 注意事項
+## Caveats
 
-### 1. Server Components / Server Actions 内でのみ有効
+### 1. Valid Only in Server Components / Server Actions
 
-`unstable_cache` と `revalidateTag()` は Server 環境でのみ有効です。
-クライアントコンポーネントからの直接呼び出しでは無視されます。
+`unstable_cache` and `revalidateTag()` are only valid in a Server environment. Calls made directly from Client Components will be ignored.
 
-### 2. Date型の扱い
+### 2. Handling Date Types
 
-プラグインは自動的に Date 型を ISO 8601 文字列に変換します。
-クライアント側で Date オブジェクトとして使う場合は `new Date(string)` で復元してください。
+The plugin automatically converts `Date` types to ISO 8601 strings. If you need to use them as Date objects on the client side, please restore them using `new Date(string)`.
 
 ```typescript
-// クライアント側
+// Client-side
 const user = await getUser(id);
-const createdAt = new Date(user.createdAt); // 文字列から復元
+const createdAt = new Date(user.createdAt); // Restore from string
 ```
 
-### 3. キャッシュキーの生成
+### 3. Cache Key Generation
 
-`unstable_cache` のキャッシュキーは `model:operation` と引数のJSON文字列から生成されます。
-同じ引数で同じ操作を行う場合、キャッシュがヒットします。
+The cache key for `unstable_cache` is generated from `model:operation` and the JSON string of the arguments. If the same operation is performed with the same arguments, the cache will be hit.
 
-## フック一覧
+## Hooks List
 
-| フック | 説明 |
-|-------|------|
-| `onQuery` | ORM操作をインターセプト。読み取り操作でキャッシュタグを設定 |
-| `mutationInterceptionFilter` | ミューテーションの事前フィルタリング |
-| `afterEntityMutation` | ミューテーション後にキャッシュを無効化 |
+| Hook | Description |
+|---|---|
+| `onQuery` | Intercepts ORM operations. Sets cache tags for read operations. |
+| `mutationInterceptionFilter` | Pre-filtering for mutations. |
+| `afterEntityMutation` | Invalidates cache after mutations. |
 
-## 対応する操作
+## Supported Operations
 
-### 読み取り操作（キャッシュ適用）
+### Read Operations (Cache Applied)
 
 - `findMany`
 - `findUnique`
@@ -187,7 +185,7 @@ const createdAt = new Date(user.createdAt); // 文字列から復元
 - `aggregate`
 - `groupBy`
 
-### 書き込み操作（キャッシュ無効化）
+### Write Operations (Cache Invalidated)
 
 - `create`
 - `createMany`
