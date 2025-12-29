@@ -355,10 +355,10 @@ export function restoreDates(
   modelName: string,
 ): unknown {
   // Prisma.Decimalを動的にインポート（テスト環境では利用不可の場合がある）
-  let PrismaDecimal: typeof import('@prisma/client/runtime/library').Decimal | null = null
+  let PrismaDecimal: typeof import('@prisma/client/runtime/client').Decimal | null = null
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Decimal } = require('@prisma/client/runtime/library')
+    const { Decimal } = require('@prisma/client/runtime/client')
     PrismaDecimal = Decimal
   } catch {
     // Prisma Decimalが利用不可な環境では文字列のまま返す
@@ -563,27 +563,32 @@ export function createNextjsCachePlugin(
     id: 'nextjs-cache',
 
     /**
-     * Entity Mutation Hooks: ミューテーション後のキャッシュ無効化
+     * Entity Mutation Hooks: ミューテーション前後のキャッシュ無効化
      */
     onEntityMutation: {
-      afterEntityMutation: async (args) => {
-        const { model, loadAfterMutationEntities } = args
+      /**
+       * ミューテーション前にキャッシュを無効化
+       * read-back時にキャッシュがあるとデータ取得できなくなるため、事前に無効化しておく必要がある
+       */
+      beforeEntityMutation: async (args) => {
+        const { model, loadBeforeMutationEntities } = args
 
-        log(`After mutation: ${model}`)
+        log(`Before mutation: ${model}`)
 
-        // 変更されたモデルのキャッシュを無効化
-        await invalidateCacheForModel(model, loadAfterMutationEntities, log)
+        // 変更されるモデルのキャッシュを先に無効化（read-back用）
+        await invalidateCacheForModel(model, loadBeforeMutationEntities, log)
 
         // リレーション先モデルのキャッシュも無効化
         const relatedModels = getRelatedModels(model)
         for (const relatedModel of relatedModels) {
           if (!isExcludedModel(relatedModel)) {
-            log(`Invalidating related model: ${relatedModel}`)
+            log(`Invalidating related model (before): ${relatedModel}`)
             // biome-ignore lint/performance/noAwaitInLoops: キャッシュ無効化は順次実行が必要
             await invalidateRelatedModelCache(relatedModel, log)
           }
         }
       },
+
     },
 
     /**
